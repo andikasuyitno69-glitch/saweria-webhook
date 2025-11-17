@@ -2,45 +2,58 @@ const express = require("express");
 const app = express();
 app.use(express.json());
 
-let latestDonation = null;
+// ✅ Simpan data donasi di memory
+let donations = [];
 
-// 📤 Endpoint untuk Roblox
+// ✅ Endpoint untuk Roblox fetch data
 app.get("/api/donations", (req, res) => {
-    if (!latestDonation) {
-        return res.json({ status: "no-donation" });
-    }
-
-    // Kirim hanya 1 objek
-    res.json({
-        playerName: latestDonation.playerName,
-        amount: latestDonation.amount,
-        message: latestDonation.message || ""
-    });
-
-    latestDonation = null; // reset setelah dikirim
+    console.log("📦 Mengirim data ke Roblox:", donations.length, "donasi");
+    res.json(donations);
 });
 
-// 💰 Endpoint untuk Saweria Webhook
+// ✅ Endpoint untuk Saweria webhook
 app.post("/DonationWebhook", (req, res) => {
     const donation = req.body;
-
-    latestDonation = {
+    
+    const data = {
         playerName: donation.donator_name?.trim() || "Unknown",
-        amount: parseInt(donation.amount_raw || 0),
+        amount: donation.amount_raw || donation.etc?.amount_to_display || 0,
         message: donation.message?.trim() || ""
     };
 
-    console.log("💰 Donasi diterima:", latestDonation);
+    console.log("💰 Donasi diterima:", data);
 
-    return res.json({ success: true });
+    // ✅ Cari apakah player sudah ada
+    const existingIndex = donations.findIndex(d => d.playerName === data.playerName);
+    
+    if (existingIndex !== -1) {
+        // Update donasi existing
+        donations[existingIndex].amount += parseInt(data.amount);
+        console.log("🔄 Update donasi:", data.playerName, "sekarang:", donations[existingIndex].amount);
+    } else {
+        // Tambah donasi baru
+        donations.push({
+            playerName: data.playerName,
+            amount: parseInt(data.amount),
+            timestamp: new Date().toISOString()
+        });
+        console.log("➕ Tambah donasi baru:", data.playerName, data.amount);
+    }
+
+    // ✅ Urutkan dari terbesar
+    donations.sort((a, b) => b.amount - a.amount);
+    
+    console.log("✅ Donasi updated. Total:", donations.length, "donatur");
+    res.json({ success: true, message: "Donasi berhasil diproses" });
 });
 
-// Root
+// ✅ Root endpoint
 app.get("/", (req, res) => {
-    res.json({
-        message: "Saweria Webhook Active",
-        latestDonation
+    res.json({ 
+        message: "Saweria Webhook Active ✅",
+        status: "HTTP Polling Mode",
+        totalDonations: donations.length
     });
 });
 
-app.listen(3000, () => console.log("🚀 Server ready - Latest Donation Only Mode"));
+app.listen(3000, () => console.log("🚀 Server ready - HTTP Polling Mode"));
